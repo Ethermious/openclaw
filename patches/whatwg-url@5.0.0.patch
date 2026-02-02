@@ -1,0 +1,12 @@
+diff --git a/lib/url-state-machine.js b/lib/url-state-machine.js
+index 27d977a25f9011fc31ed28c17ba11f729b85edea..821effcffea74d5ff302b4bc5d99f7959ba431fc 100644
+--- a/lib/url-state-machine.js
++++ b/lib/url-state-machine.js
+@@ -1,5 +1,6 @@
+ "use strict";
+-const punycode = require("punycode");
++// Use userland punycode package, not Node's deprecated built-in.
++const punycode = require("punycode/");
+ const tr46 = require("tr46");
+ 
+ const specialSchemes = {
