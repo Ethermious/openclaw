@@ -95,7 +95,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
         try {
           return await tool.execute(toolCallId, params, signal, onUpdate);
         } catch (err) {
-          if (resolvedSignal?.aborted) {
+          if (signal?.aborted) {
             throw err;
           }
           const name =

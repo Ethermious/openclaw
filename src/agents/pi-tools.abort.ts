@@ -6,13 +6,15 @@ function throwAbortError(): never {
   throw err;
 }
 
-/**
- * Checks if an object is a valid AbortSignal using structural typing.
- * This is more reliable than `instanceof` across different realms (VM, iframe, etc.)
- * where the AbortSignal constructor may differ.
- */
-function isAbortSignal(obj: unknown): obj is AbortSignal {
-  return obj instanceof AbortSignal;
+function isAbortSignalLike(x: unknown): x is AbortSignal {
+  return (
+    !!x &&
+    typeof x === "object" &&
+    "aborted" in x &&
+    typeof (x as any).aborted === "boolean" &&
+    typeof (x as any).addEventListener === "function" &&
+    typeof (x as any).removeEventListener === "function"
+  );
 }
 
 function combineAbortSignals(a?: AbortSignal, b?: AbortSignal): AbortSignal | undefined {
@@ -31,8 +33,8 @@ function combineAbortSignals(a?: AbortSignal, b?: AbortSignal): AbortSignal | un
   if (b?.aborted) {
     return b;
   }
-  if (typeof AbortSignal.any === "function" && isAbortSignal(a) && isAbortSignal(b)) {
-    return AbortSignal.any([a, b]);
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([a!, b!]);
   }
 
   const controller = new AbortController();
@@ -65,19 +67,8 @@ export function wrapToolWithAbortSignal(
   };
 }
 
-function isAbortSignal(x: unknown): x is AbortSignal {
-  return (
-    !!x &&
-    typeof x === "object" &&
-    "aborted" in x &&
-    typeof (x as any).aborted === "boolean" &&
-    typeof (x as any).addEventListener === "function" &&
-    typeof (x as any).removeEventListener === "function"
-  );
-}
-
 export function anyAbortSignal(a?: unknown, b?: unknown): AbortSignal | undefined {
-  const signals = [a, b].filter(isAbortSignal);
+  const signals = [a, b].filter(isAbortSignalLike);
   if (signals.length === 0) return undefined;
   if (signals.length === 1) return signals[0];
   return AbortSignal.any(signals);
