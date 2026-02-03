@@ -3,7 +3,7 @@ import type {
   AgentToolResult,
   AgentToolUpdateCallback,
 } from "@mariozechner/pi-agent-core";
-import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext, ToolDefinition } from "@mariozechner/pi-coding-agent";
 import type { ClientToolDefinition } from "./pi-embedded-runner/run/params.js";
 import { logDebug, logError } from "../logger.js";
 import { runBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
@@ -95,7 +95,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
         try {
           return await tool.execute(toolCallId, params, signal, onUpdate);
         } catch (err) {
-          if (signal?.aborted) {
+          if (resolvedSignal?.aborted) {
             throw err;
           }
           const name =

@@ -64,3 +64,21 @@ export function wrapToolWithAbortSignal(
     },
   };
 }
+
+function isAbortSignal(x: unknown): x is AbortSignal {
+  return (
+    !!x &&
+    typeof x === "object" &&
+    "aborted" in x &&
+    typeof (x as any).aborted === "boolean" &&
+    typeof (x as any).addEventListener === "function" &&
+    typeof (x as any).removeEventListener === "function"
+  );
+}
+
+export function anyAbortSignal(a?: unknown, b?: unknown): AbortSignal | undefined {
+  const signals = [a, b].filter(isAbortSignal);
+  if (signals.length === 0) return undefined;
+  if (signals.length === 1) return signals[0];
+  return AbortSignal.any(signals);
+}
