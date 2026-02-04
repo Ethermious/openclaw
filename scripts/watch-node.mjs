@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import process from "node:process";
 
 const args = process.argv.slice(2);
 const env = { ...process.env };
 const cwd = process.cwd();
 const compiler = "tsdown";
-const entryPath = new URL("./dist/entry.js", import.meta.url).pathname;
+const entryPath = path.join(cwd, "dist", "entry.js");
 
 const initialBuild = spawnSync("pnpm", ["exec", compiler], {
   cwd,
