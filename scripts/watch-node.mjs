@@ -28,6 +28,7 @@ const compilerProcess = spawn("pnpm", ["exec", compiler, "--watch"], {
 
 let nodeProcess = null;
 let exiting = false;
+let restartTimer = null;
 
 function waitForEntry() {
   return new Promise((resolve) => {
@@ -44,12 +45,21 @@ function waitForEntry() {
   });
 }
 
-async function startNode() {
-  await waitForEntry();
-  if (exiting) {
+function stopNode() {
+  if (!nodeProcess) {
     return;
   }
-  nodeProcess = spawn(process.execPath, ["--watch", "openclaw.mjs", ...args], {
+  nodeProcess.removeAllListeners();
+  nodeProcess.kill("SIGTERM");
+  nodeProcess = null;
+}
+
+async function startNode() {
+  await waitForEntry();
+  if (exiting || nodeProcess) {
+    return;
+  }
+  nodeProcess = spawn(process.execPath, ["openclaw.mjs", ...args], {
     cwd,
     env,
     stdio: "inherit",
@@ -59,8 +69,23 @@ async function startNode() {
     if (signal || exiting) {
       return;
     }
-    startNode().catch(() => process.exit(code ?? 1));
+    nodeProcess = null;
+    queueRestart();
   });
+}
+
+function queueRestart() {
+  if (exiting) {
+    return;
+  }
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+  }
+  restartTimer = setTimeout(async () => {
+    restartTimer = null;
+    stopNode();
+    await startNode();
+  }, 250);
 }
 
 function cleanup(code = 0) {
@@ -68,7 +93,10 @@ function cleanup(code = 0) {
     return;
   }
   exiting = true;
-  nodeProcess?.kill("SIGTERM");
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+  }
+  stopNode();
   compilerProcess.kill("SIGTERM");
   process.exit(code);
 }
@@ -81,6 +109,10 @@ compilerProcess.on("exit", (code) => {
     return;
   }
   cleanup(code ?? 1);
+});
+
+fs.watchFile(entryPath, { interval: 200 }, () => {
+  queueRestart();
 });
 
 startNode().catch(() => cleanup(1));
