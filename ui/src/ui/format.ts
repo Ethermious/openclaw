@@ -67,6 +67,19 @@ export function clampText(value: string, max = 120): string {
   return `${value.slice(0, Math.max(0, max - 1))}…`;
 }
 
+export function truncateMiddle(value: string, max: number): string {
+  const str = `${value ?? ""}`;
+  if (max <= 0 || str.length <= max) {
+    return str;
+  }
+  if (max <= 3) {
+    return str.slice(0, max);
+  }
+  const head = Math.ceil((max - 1) / 2);
+  const tail = Math.floor((max - 1) / 2);
+  return `${str.slice(0, head)}…${str.slice(str.length - tail)}`;
+}
+
 export function truncateText(
   value: string,
   max: number,

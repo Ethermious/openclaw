@@ -62,6 +62,7 @@ const debouncedLoadUsage = (state: UsageState) => {
   }
   usageDateDebounceTimeout = window.setTimeout(() => void loadUsage(state), 400);
 };
+import { truncateMiddle } from "./format.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -95,6 +96,52 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
     return candidate;
   }
   return identity?.avatarUrl;
+}
+
+function renderContextStrip(state: AppViewState) {
+  // UX: Where → Scope → Session (human-first; stable IDs are still visible elsewhere).
+  const parsed = parseAgentSessionKey(state.sessionKey);
+  const agentId = parsed?.agentId ?? state.agentsList?.defaultId ?? "main";
+  const rest = parsed?.rest ?? state.sessionKey;
+
+  const row = state.sessionsResult?.sessions?.find((s) => s.key === state.sessionKey) ?? null;
+  const where =
+    row?.displayName ??
+    row?.label ??
+    row?.subject ??
+    row?.room ??
+    row?.space ??
+    (row?.kind ? `${row.kind}` : null);
+
+  // Scope: keep it simple and non-invasive (thread/topic ids are often embedded in rest).
+  const scope = row?.kind && row.kind !== "unknown" ? row.kind : null;
+
+  const sessionShort = row?.sessionId ? `s:${row.sessionId.slice(0, 6)}` : null;
+
+  const items: Array<{ k: string; v: string | null }> = [
+    { k: "Agent", v: agentId },
+    { k: "Where", v: where ? truncateMiddle(where, 42) : null },
+    { k: "Scope", v: scope },
+    { k: "Session", v: truncateMiddle(rest, 48) },
+    { k: "ID", v: sessionShort },
+  ];
+
+  const visible = items.filter((x) => x.v);
+  if (visible.length === 0) return null;
+
+  return html`<div class="context-strip" title=${state.sessionKey}>
+    ${visible.map(
+      (item, idx) =>
+        html`${
+          idx > 0
+            ? html`
+                <span class="sep">·</span>
+              `
+            : null
+        }
+        <span class="kv"><span class="k">${item.k}:</span> <span class="v">${item.v}</span></span>`,
+    )}
+  </div>`;
 }
 
 export function renderApp(state: AppViewState) {
@@ -141,6 +188,9 @@ export function renderApp(state: AppViewState) {
               <div class="brand-sub">Gateway Dashboard</div>
             </div>
           </div>
+        </div>
+        <div class="topbar-context">
+          ${renderContextStrip(state)}
         </div>
         <div class="topbar-status">
           <div class="pill">

@@ -61,6 +61,11 @@
     align-items: center;
   }
 
+  /* Keep the context strip from crowding on small screens. */
+  .topbar-context {
+    display: none;
+  }
+
   .brand {
     flex: 1;
     min-width: 0;
