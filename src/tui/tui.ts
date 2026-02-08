@@ -292,6 +292,84 @@ export async function runTui(opts: TuiOptions) {
     return parsed?.rest ?? key;
   };
 
+  const truncateMiddle = (s: string, max: number) => {
+    const str = `${s ?? ""}`;
+    if (max <= 0 || str.length <= max) {
+      return str;
+    }
+    if (max <= 3) {
+      return str.slice(0, max);
+    }
+    const head = Math.ceil((max - 1) / 2);
+    const tail = Math.floor((max - 1) / 2);
+    return `${str.slice(0, head)}…${str.slice(str.length - tail)}`;
+  };
+
+  const parseSessionRest = (rest: string) => {
+    // rest examples:
+    // - mainKey (e.g. "main" / "joel")
+    // - slack:dm:U123
+    // - slack:channel:C123
+    // - slack:channel:C123:thread:171234...
+    // - telegram:group:-100123:topic:42
+    const parts = rest.split(":");
+
+    const out: {
+      channel?: string;
+      type?: "dm" | "group" | "channel" | "thread" | "unknown";
+      accountId?: string;
+      peerId?: string;
+      threadId?: string;
+      topicId?: string;
+    } = {};
+
+    // Heuristic: treat "<channel>:..." shapes as structured.
+    if (
+      parts.length >= 2 &&
+      /^(webchat|slack|discord|telegram|whatsapp|signal|imessage)$/.test(parts[0])
+    ) {
+      out.channel = parts[0];
+
+      // Shapes from docs (see concepts/session.md):
+      // - <channel>:dm:<peer>
+      // - <channel>:<accountId>:dm:<peer>
+      // - <channel>:group:<id>
+      // - <channel>:channel:<id>
+      const dmIdx = parts.indexOf("dm");
+      const groupIdx = parts.indexOf("group");
+      const channelIdx = parts.indexOf("channel");
+
+      if (dmIdx !== -1) {
+        out.type = "dm";
+        out.peerId = parts[dmIdx + 1];
+        if (dmIdx === 2) out.accountId = parts[1];
+      } else if (groupIdx !== -1) {
+        out.type = "group";
+        out.peerId = parts[groupIdx + 1];
+      } else if (channelIdx !== -1) {
+        out.type = "channel";
+        out.peerId = parts[channelIdx + 1];
+      } else {
+        out.type = "unknown";
+      }
+
+      const threadIdx = parts.indexOf("thread");
+      if (threadIdx !== -1) {
+        out.threadId = parts[threadIdx + 1];
+        out.type = "thread";
+      }
+
+      const topicIdx = parts.indexOf("topic");
+      if (topicIdx !== -1) {
+        out.topicId = parts[topicIdx + 1];
+      }
+
+      return out;
+    }
+
+    return out;
+  };
+
   const formatAgentLabel = (id: string) => {
     const name = agentNames.get(id);
     return name ? `${id} (${name})` : id;
@@ -320,13 +398,34 @@ export async function runTui(opts: TuiOptions) {
   currentSessionKey = resolveSessionKey(initialSessionInput);
 
   const updateHeader = () => {
-    const sessionLabel = formatSessionKey(currentSessionKey);
+    const sessionRest = formatSessionKey(currentSessionKey);
     const agentLabel = formatAgentLabel(currentAgentId);
-    header.setText(
-      theme.header(
-        `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`,
-      ),
-    );
+
+    const parsed = parseSessionRest(sessionRest);
+
+    // UX: "Where → Scope → Which session". Prefer human label first.
+    const where = sessionInfo.displayName
+      ? sessionInfo.displayName
+      : parsed.channel
+        ? parsed.channel
+        : "unknown";
+
+    const scopeParts = [
+      parsed.type ? `type ${parsed.type}` : null,
+      parsed.threadId ? `thread ${truncateMiddle(parsed.threadId, 18)}` : null,
+      parsed.topicId ? `topic ${truncateMiddle(parsed.topicId, 10)}` : null,
+    ].filter(Boolean);
+    const scope = scopeParts.length ? scopeParts.join(", ") : null;
+
+    const headerParts = [
+      `openclaw tui - ${client.connection.url}`,
+      `Agent: ${agentLabel}`,
+      `Where: ${truncateMiddle(where, 36)}`,
+      scope ? `Scope: ${scope}` : null,
+      `Session: ${truncateMiddle(sessionRest, 44)}`,
+    ].filter(Boolean);
+
+    header.setText(theme.header(headerParts.join(" | ")));
   };
 
   const busyStates = new Set(["sending", "waiting", "streaming", "running"]);
@@ -494,31 +593,34 @@ export async function runTui(opts: TuiOptions) {
   };
 
   const updateFooter = () => {
-    const sessionKeyLabel = formatSessionKey(currentSessionKey);
-    const sessionLabel = sessionInfo.displayName
-      ? `${sessionKeyLabel} (${sessionInfo.displayName})`
-      : sessionKeyLabel;
+    const sessionRest = formatSessionKey(currentSessionKey);
     const agentLabel = formatAgentLabel(currentAgentId);
     const modelLabel = sessionInfo.model
       ? sessionInfo.modelProvider
         ? `${sessionInfo.modelProvider}/${sessionInfo.model}`
         : sessionInfo.model
       : "unknown";
+
+    const parsed = parseSessionRest(sessionRest);
     const tokens = formatTokens(sessionInfo.totalTokens ?? null, sessionInfo.contextTokens ?? null);
     const think = sessionInfo.thinkingLevel ?? "off";
     const verbose = sessionInfo.verboseLevel ?? "off";
     const reasoning = sessionInfo.reasoningLevel ?? "off";
-    const reasoningLabel =
-      reasoning === "on" ? "reasoning" : reasoning === "stream" ? "reasoning:stream" : null;
-    const footerParts = [
-      `agent ${agentLabel}`,
-      `session ${sessionLabel}`,
-      modelLabel,
-      think !== "off" ? `think ${think}` : null,
-      verbose !== "off" ? `verbose ${verbose}` : null,
-      reasoningLabel,
-      tokens,
-    ].filter(Boolean);
+    const reasoningValue = reasoning === "on" ? "on" : reasoning === "stream" ? "stream" : null;
+
+    // Footer should prioritize runtime knobs + health, not identity (identity lives in header).
+    const fields: Array<[string, string | null]> = [
+      ["Model", modelLabel],
+      ["Think", think !== "off" ? think : null],
+      ["Verbose", verbose !== "off" ? verbose : null],
+      ["Reasoning", reasoningValue],
+      ["Tokens", tokens],
+      // Lightweight hint (kept short):
+      ["Sess", truncateMiddle(sessionRest, 28)],
+    ];
+
+    const footerParts = fields.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
+
     footer.setText(theme.dim(footerParts.join(" | ")));
   };
 
