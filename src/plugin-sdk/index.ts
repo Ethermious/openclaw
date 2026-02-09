@@ -59,20 +59,25 @@ export type {
 } from "../channels/plugins/types.js";
 export type { ChannelConfigSchema, ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export type {
+  AnyAgentTool,
   OpenClawPluginApi,
   OpenClawPluginService,
   OpenClawPluginServiceContext,
+  ProviderAuthContext,
+  ProviderAuthResult,
 } from "../plugins/types.js";
 export type {
   GatewayRequestHandler,
   GatewayRequestHandlerOptions,
   RespondFn,
 } from "../gateway/server-methods/types.js";
-export type { PluginRuntime } from "../plugins/runtime/types.js";
+export type { PluginRuntime, RuntimeLogger } from "../plugins/runtime/types.js";
 export { normalizePluginHttpPath } from "../plugins/http-path.js";
 export { registerPluginHttpRoute } from "../plugins/http-registry.js";
 export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 export type { OpenClawConfig } from "../config/config.js";
+/** @deprecated Use OpenClawConfig instead */
+export type { OpenClawConfig as ClawdbotConfig } from "../config/config.js";
 export type { ChannelDock } from "../channels/dock.js";
 export { getChatChannelMeta } from "../channels/registry.js";
 export type {
@@ -125,6 +130,12 @@ export { resolveAckReaction } from "../agents/identity.js";
 export type { ReplyPayload } from "../auto-reply/types.js";
 export type { ChunkMode } from "../auto-reply/chunk.js";
 export { SILENT_REPLY_TOKEN, isSilentReplyText } from "../auto-reply/tokens.js";
+export {
+  approveDevicePairing,
+  listDevicePairing,
+  rejectDevicePairing,
+} from "../infra/device-pairing.js";
+export { formatErrorMessage } from "../infra/errors.js";
 export { resolveToolsBySender } from "../config/group-policy.js";
 export {
   buildPendingHistoryContextFromMap,
